@@ -30,7 +30,7 @@ def utf8open(fn, mode):
     return open(fn, mode, encoding='utf-8')
 
 def debug(str):
-   sys.stderr.write('DEBUG: ' + str + '\n')
+  sys.stderr.write(f'DEBUG: {str}' + '\n')
 
 class Object:
 
@@ -41,10 +41,7 @@ class TVH_C_Renderer(Renderer):
   def get_nolang(self, text):
     if not text:
       return ''
-    if HUMAN:
-      return text
-    else:
-      return '_' + str(len(text)) + ':' + text
+    return text if HUMAN else f'_{len(text)}:{text}'
     
   def get_lang(self, text):
     if not text:
@@ -63,7 +60,7 @@ class TVH_C_Renderer(Renderer):
       text = text.replace('  ', ' ')
 
     if not HUMAN:
-      text = 'x' + str(len(text)) + ':' + text
+      text = f'x{len(text)}:{text}'
     return self.get_nolang(n) + text + self.get_nolang(e)
 
   def get_human(self, text):
@@ -77,7 +74,7 @@ class TVH_C_Renderer(Renderer):
       type = text[0]
       p = text.find(':')
       if p <= 0:
-        fatal('wrong text entry: ' + repr(text))
+        fatal(f'wrong text entry: {repr(text)}')
         break
       l = int(text[1:p])
       o = text[:p+1+l]
@@ -101,20 +98,18 @@ class TVH_C_Renderer(Renderer):
       if type == 'x':
         xfound = 1
       elif type != '_':
-        fatal('wrong type: ' + type + ' {' + t + '}')
+        fatal(f'wrong type: {type}' + ' {' + t + '}')
     return d + (xfound and self.get_lang(r) or self.get_nolang(r))
 
   def extra_cmd(self, text, tag, type):
-    pos1 = text.find('<' + tag + '>')
+    pos1 = text.find(f'<{tag}>')
     if pos1 < 0:
       return 0
-    pos2 = text.find('</' + tag + '>')
+    pos2 = text.find(f'</{tag}>')
     if pos2 < 0:
       return 0
     link = text[pos1 + len(tag) + 2:pos2]
-    if len(link) <= 0:
-      return 0
-    return type + str(len(link)) + ':' + link
+    return 0 if len(link) <= 0 else type + str(len(link)) + ':' + link
 
   def get_block(self, text):
     type = text[0]
@@ -132,13 +127,15 @@ class TVH_C_Renderer(Renderer):
   def text(self, text):
     if not text:
       return ''
-    if DEBUG: debug('text: ' + repr(text))
+    if DEBUG:
+      debug(f'text: {repr(text)}')
     text = text.replace('\n', ' ')
     text = text.replace('\t', '        ')
     return self.get_lang(text)
 
   def doescape(self, text):
-    if DEBUG: debug('escape: ' + repr(text))
+    if DEBUG:
+      debug(f'escape: {repr(text)}')
     return self.get_nolang(text)
 
   def linebreak(self):
@@ -154,7 +151,8 @@ class TVH_C_Renderer(Renderer):
     return '\n' + self.get_nolang('#'*(level+1) + ' ') + text + '\n'
 
   def paragraph(self, text):
-    if DEBUG: debug('paragraph: ' + repr(text))
+    if DEBUG:
+      debug(f'paragraph: {repr(text)}')
     return '\n' + self.get_human(text) + '\n'
 
   def list(self, text, ordered=True):
@@ -162,52 +160,56 @@ class TVH_C_Renderer(Renderer):
     idx = 1
     while text:
       text, type, t = self.get_block(text)
-      if DEBUG: debug('list[' + type + ']: ' + repr(t))
+      if DEBUG:
+        debug(f'list[{type}]: {repr(t)}')
       if type == 'l':
-        r += self.get_nolang(ordered and str(idx) + '. ' or '* ') + t
+        r += self.get_nolang(ordered and f'{str(idx)}. ' or '* ') + t
         if ordered: idx += 1
     return r
 
   def list_item(self, text):
     while text[0] == '\n':
       text = text[1:]
-    if DEBUG: debug('list item: ' + repr(text))
+    if DEBUG:
+      debug(f'list item: {repr(text)}')
     a = text.split('\n')
     text = self.get_human(a[0]) + '\n'
     for t in a[1:]:
       if t:
         text += self.get_nolang('  ') + t + '\n'
-    return 'l' + str(len(text)) + ':' + text
+    return f'l{len(text)}:{text}'
 
   def block_code(self, code, lang=None):
-    if DEBUG: debug('block code: ' + repr(code))
+    if DEBUG:
+      debug(f'block code: {repr(code)}')
     r = self.get_nolang('```no-highlight') + '\n'
     for line in code.splitlines():
       r += self.get_nolang(line) + '\n'
     return r + self.get_nolang('```') + '\n'
 
   def block_quote(self, text):
-    r = ''
-    for line in text.splitlines():
-      r += self.get_nolang((line and '> ' or '')) + line + '\n'
-    return r
+    return ''.join(
+        self.get_nolang((line and '> ' or '')) + line + '\n'
+        for line in text.splitlines())
 
   def block_html(self, text):
-    if DEBUG: debug('block html: ' + repr(text))
-    a = self.extra_cmd(text, 'tvh_class_doc', 'd')
-    if a: return a
-    a = self.extra_cmd(text, 'tvh_class_items', 'i')
-    if a: return a
-    a = self.extra_cmd(text, 'tvh_include', 'I')
-    if a: return a
-    fatal('Block HTML not allowed: ' + repr(text))
+    if DEBUG:
+      debug(f'block html: {repr(text)}')
+    if a := self.extra_cmd(text, 'tvh_class_doc', 'd'):
+      return a
+    if a := self.extra_cmd(text, 'tvh_class_items', 'i'):
+      return a
+    if a := self.extra_cmd(text, 'tvh_include', 'I'):
+      return a
+    fatal(f'Block HTML not allowed: {repr(text)}')
 
   def inline_html(self, text):
-    fatal('Inline HTML not allowed: ' + repr(text))
+    fatal(f'Inline HTML not allowed: {repr(text)}')
 
   def _emphasis(self, text, pref):
-    if DEBUG: debug('emphasis[' + pref + ']: ' + repr(text))
-    return self.get_nolang(pref) + text + self.get_nolang(pref + ' ')
+    if DEBUG:
+      debug(f'emphasis[{pref}]: {repr(text)}')
+    return self.get_nolang(pref) + text + self.get_nolang(f'{pref} ')
 
   def emphasis(self, text):
     return self._emphasis(text, '_')
@@ -219,14 +221,14 @@ class TVH_C_Renderer(Renderer):
     return self._emphasis(text, '~~')
 
   def codespan(self, text):
-    return self.get_nolang('`' + text + '`')
+    return self.get_nolang(f'`{text}`')
 
   def autolink(self, link, is_email=False):
     return self.get_nolang('<') + link + self.get_nolang('>')
 
   def link(self, link, title, text, image=False):
-    r = self.get_nolang((image and '!' or '') + '[') + \
-        text + self.get_nolang('](' + link + ')')
+    r = (self.get_nolang((image and '!' or '') + '[') + text +
+         self.get_nolang(f']({link})'))
     if title:
       r += self.get_nolang('"') + title + self.get_nolang('"')
     return r
@@ -235,7 +237,8 @@ class TVH_C_Renderer(Renderer):
     self.link(src, title, text, image=True)
 
   def table(self, header, body):
-    if DEBUG: debug('table: ' + repr(header) + ' ' + repr(body))
+    if DEBUG:
+      debug(f'table: {repr(header)} {repr(body)}')
     hrows = []
     while header:
       header, type, t = self.get_block(header)
@@ -275,20 +278,16 @@ class TVH_C_Renderer(Renderer):
     align = [''] * 100
     for row in hrows + brows:
       colscount = max(len(row), colscount)
-      i = 0
-      for col in row:
+      for i, col in enumerate(row):
         colmax[i] = max(len(col.text), colmax[i])
         if 'align' in col.flags:
           align[i] = col.flags['align'][0]
-        i += 1
     r = '\n'
     for row in hrows:
-      i = 0
-      for col in row:
+      for i, col in enumerate(row):
         if i > 0:
           r += self.get_nolang(' | ')
         r += col.text
-        i += 1
       r += '\n'
     for i in range(colscount):
       if i > 0:
@@ -303,39 +302,38 @@ class TVH_C_Renderer(Renderer):
         r += self.get_nolang('-----')
     r += '\n'
     for row in brows:
-      i = 0
-      for col in row:
+      for i, col in enumerate(row):
         if i > 0:
           r += self.get_nolang(' | ')
         r += col.text
-        i += 1
       r += '\n'
     return r
 
   def table_row(self, content):
-    if DEBUG: debug('table_row: ' + repr(content))
-    return 'r' + str(len(content)) + ':' + content
+    if DEBUG:
+      debug(f'table_row: {repr(content)}')
+    return f'r{len(content)}:{content}'
 
   def table_cell(self, content, **flags):
-    if DEBUG: debug('table_cell: ' + repr(content) + ' ' + repr(flags))
+    if DEBUG:
+      debug(f'table_cell: {repr(content)} {repr(flags)}')
     # dirty fix for inline images
     if content.startswith('x1:!_1:['):
-      content = '_2:![' + content[8:]
+      content = f'_2:![{content[8:]}'
     content = content.replace('\n', ' ')
     r = ''
-    for fl in flags:
-      v = flags[fl]
+    for fl, v in flags.items():
       if type(v) == type(True):
-        v = v and 1 or 0
+        v = 1 if v else 0
       v = str(v) and str(v) or ''
-      r += 'f' + str(len(fl) + 1 + len(v)) + ':' + fl + '=' + v
-    return r + 'c' + str(len(content)) + ':' + content
+      r += f'f{str(len(fl) + 1 + len(v))}:{fl}={v}'
+    return f'{r}c{len(content)}:{content}'
 
   def footnote_ref(self, key, index):
-    return self.get_nolang('[^' + str(index) + ']')
+    return self.get_nolang(f'[^{str(index)}]')
 
   def footnote_item(self, key, text):
-    r = self.get_nolang('[^' + str(index) + ']:' + '\n')
+    r = self.get_nolang(f'[^{str(index)}]:' + '\n')
     for l in text.split('\n'):
       r += self.get_nolang('  ') + self.get_lang(l.lstrip().rstrip()) + '\n'
     return r
@@ -374,7 +372,7 @@ def optimize(text):
       type = text[0]
       p = text.find(':')
       if p <= 0:
-        fatal('wrong text entry: ' + repr(text))
+        fatal(f'wrong text entry: {repr(text)}')
         break
       l = int(text[1:p])
       t = text[p+1:p+1+l]
@@ -422,18 +420,15 @@ def dopages(pages):
 #
 
 def fatal(msg):
-  sys.stderr.write('FATAL: ' + msg + '\n')
+  sys.stderr.write(f'FATAL: {msg}' + '\n')
   sys.exit(1)
 
 def argv_get(what):
-  what = '--' + what
+  what = f'--{what}'
   for a in sys.argv:
     if a.startswith(what):
       a = a[len(what):]
-      if a and a[0] == '=':
-        return a[1:]
-      else:
-        return True
+      return a[1:] if a and a[0] == '=' else True
   return None
 
 #
@@ -451,16 +446,14 @@ def run(input, name, human):
   text = optimize(text)
   if human:
     return text
-  return 'const char *' + name + '[] = {\n' + text + '\nNULL\n};\n'
+  return f'const char *{name}' + '[] = {\n' + text + '\nNULL\n};\n'
 
 HUMAN=argv_get('human')
 DEBUG=argv_get('debug')
-pages = argv_get('pages')
-if pages:
+if pages := argv_get('pages'):
   dopages(pages)
   sys.exit(0)
-BATCH=argv_get('batch')
-if BATCH:
+if BATCH := argv_get('batch'):
   inpath = argv_get('inpath')
   out = argv_get('out')
   name = argv_get('name')
@@ -468,7 +461,7 @@ if BATCH:
   fp = utf8open(out, "a+")
   for l in list.split(' '):
     input = inpath % l
-    print("Markdown: %s" % input)
+    print(f"Markdown: {input}")
     n = (name % l).replace('/', '_')
     text = run(input, n, HUMAN)
     fp.write(text)

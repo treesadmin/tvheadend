@@ -34,13 +34,15 @@ def bin2int(d):
 def uuid2int(uuid):
     if sys.byteorder == 'little':
         n = 2
-        uuid = uuid[0:8]
+        uuid = uuid[:8]
         sep = [uuid[i:i + n] for i in range(0, len(uuid), n)]
         sep.reverse()
         end_uuid = "".join(sep)
         return int(end_uuid, 16) & 0x7fffffff
 
-    raise NotImplementedError("Currently not implemented for byte-order %s" % sys.byteorder)
+    raise NotImplementedError(
+        f"Currently not implemented for byte-order {sys.byteorder}"
+    )
 
 
 # ###########################################################################
@@ -93,7 +95,7 @@ def hmf_type(f):
 def _binary_count(f):
     ret = 0
     if type(f) in [str, HMFBin]:
-        ret = ret + len(f)
+        ret += len(f)
     elif type(f) == int:
         while (f):
             ret = ret + 1
@@ -194,10 +196,7 @@ def deserialize0(data, typ=HMF_MAP):
             item = deserialize0(data[:dlen], typ)
         elif typ == HMF_BOOL:
             bool_val = data[:dlen]
-            if len(bool_val) > 0:
-                item = bool(ord(bool_val))
-            else:
-                item = None
+            item = bool(ord(bool_val)) if len(bool_val) > 0 else None
         else:
             raise Exception('invalid data type %d' % typ)
         if islist:
@@ -214,6 +213,9 @@ def deserialize0(data, typ=HMF_MAP):
 
 # Deserialize a series of message
 def deserialize(fp, rec=False):
+
+
+
     class _Deserialize:
         def __init__(self, fp, rec=False):
             self._fp = fp
@@ -245,16 +247,17 @@ def deserialize(fp, rec=False):
             num = bin2int(tmp)
             data = b''
             while len(data) < num:
-                tmp = self._read(num - len(data))
-                if not tmp:
+                if tmp := self._read(num - len(data)):
+                    data += tmp
+                else:
                     raise Exception('failed to read from fp')
-                data = data + tmp
             if not self._rec: self._fp = None
             # Python2 compatibility: data is a str in python2,
             # and bytes in python3, so ensure we have consistency
             # here.
             data = bytearray(data)
             return deserialize0(data)
+
 
     ret = _Deserialize(fp, rec)
     if not rec:

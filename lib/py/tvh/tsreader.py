@@ -31,17 +31,15 @@ def encode_utf8(c):
 
 def conv_8859(tnum, data):
     r = u''
-    print 'TBL %d' % tnum
+    r = u''
     tbl = conv_8859_table[tnum]
     for c in data:
         if ord(c) <= 0x7f:
             r = r + c
         elif ord(c) <= 0x9f:
-            r = r + ' '
-        else:
-            uc = tbl[ord(c) - 0xa0]
-            if uc:
-                r = r + encode_utf8(uc)
+            r = f'{r} '
+        elif uc := tbl[ord(c) - 0xA0]:
+            r = r + encode_utf8(uc)
     return r
 
 

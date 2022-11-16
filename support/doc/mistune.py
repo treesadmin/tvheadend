@@ -122,20 +122,24 @@ class BlockGrammar(object):
     )
     list_bullet = re.compile(r'^ *(?:[*+-]|\d+\.) +')
     paragraph = re.compile(
-        r'^((?:[^\n]+\n?(?!'
-        r'%s|%s|%s|%s|%s|%s|%s|%s|%s'
-        r'))+)\n*' % (
-            _pure_pattern(fences).replace(r'\1', r'\2'),
-            _pure_pattern(list_block).replace(r'\1', r'\3'),
-            _pure_pattern(hrule),
-            _pure_pattern(heading),
-            _pure_pattern(lheading),
-            _pure_pattern(block_quote),
-            _pure_pattern(def_links),
-            _pure_pattern(def_footnotes),
-            '<' + _block_tag,
+        (
+            r'^((?:[^\n]+\n?(?!'
+            r'%s|%s|%s|%s|%s|%s|%s|%s|%s'
+            r'))+)\n*'
+            % (
+                _pure_pattern(fences).replace(r'\1', r'\2'),
+                _pure_pattern(list_block).replace(r'\1', r'\3'),
+                _pure_pattern(hrule),
+                _pure_pattern(heading),
+                _pure_pattern(lheading),
+                _pure_pattern(block_quote),
+                _pure_pattern(def_links),
+                _pure_pattern(def_footnotes),
+                f'<{_block_tag}',
+            )
         )
     )
+
     block_html = re.compile(
         r'^ *(?:%s|%s|%s) *(?:\n{2,}|\s*$)' % (
             r'<!--[\s\S]*?-->',
@@ -199,7 +203,7 @@ class BlockLexer(object):
                 m = rule.match(text)
                 if not m:
                     continue
-                getattr(self, 'parse_%s' % key)(m)
+                getattr(self, f'parse_{key}')(m)
                 return m
             return False  # pragma: no cover
 
@@ -209,7 +213,7 @@ class BlockLexer(object):
                 text = text[len(m.group(0)):]
                 continue
             if text:  # pragma: no cover
-                raise RuntimeError('Infinite loop at: %s' % text)
+                raise RuntimeError(f'Infinite loop at: {text}')
         return self.tokens
 
     def parse_newline(self, m):
@@ -277,7 +281,7 @@ class BlockLexer(object):
 
             # outdent
             if '\n ' in item:
-                space = space - len(item)
+                space -= len(item)
                 pattern = re.compile(r'^ {1,%d}' % space, flags=re.M)
                 item = pattern.sub('', item)
 
@@ -292,11 +296,7 @@ class BlockLexer(object):
                 if not loose:
                     loose = _next
 
-            if loose:
-                t = 'loose_item_start'
-            else:
-                t = 'list_item_start'
-
+            t = 'loose_item_start' if loose else 'list_item_start'
             self.tokens.append({'type': t})
             # recurse
             self.parse(item, self.list_rules)
@@ -340,8 +340,7 @@ class BlockLexer(object):
                 if space and (not whitespace or space < whitespace):
                     whitespace = space
             newlines = [lines[0]]
-            for line in lines[1:]:
-                newlines.append(line[whitespace:])
+            newlines.extend(line[whitespace:] for line in lines[1:])
             text = '\n'.join(newlines)
 
         self.parse(text, self.footnote_rules)
@@ -390,12 +389,11 @@ class BlockLexer(object):
             else:
                 align[i] = None
 
-        item = {
+        return {
             'type': 'table',
             'header': header,
             'align': align,
         }
-        return item
 
     def parse_block_html(self, m):
         pre = m.group(1) in ['pre', 'script', 'style']
@@ -517,7 +515,7 @@ class InlineLexer(object):
                 if not m:
                     continue
                 self.line_match = m
-                out = getattr(self, 'output_%s' % key)(m)
+                out = getattr(self, f'output_{key}')(m)
                 if out is not None:
                     return m, out
             return False  # pragma: no cover
@@ -532,7 +530,7 @@ class InlineLexer(object):
                 text = text[len(m.group(0)):]
                 continue
             if text:  # pragma: no cover
-                raise RuntimeError('Infinite loop at: %s' % text)
+                raise RuntimeError(f'Infinite loop at: {text}')
 
         return output
 
@@ -541,10 +539,7 @@ class InlineLexer(object):
 
     def output_autolink(self, m):
         link = m.group(1)
-        if m.group(2) == '@':
-            is_email = True
-        else:
-            is_email = False
+        is_email = m.group(2) == '@'
         return self.renderer.autolink(link, is_email)
 
     def output_url(self, m):
@@ -667,11 +662,9 @@ class Renderer(object):
         :param html: text content of the html snippet.
         """
         if self.options.get('skip_style') and \
-           html.lower().startswith('<style'):
+               html.lower().startswith('<style'):
             return ''
-        if self.options.get('escape'):
-            return escape(html)
-        return html
+        return escape(html) if self.options.get('escape') else html
 
     def header(self, text, level, raw=None):
         """Rendering header/heading tags like ``<h1>`` ``<h2>``.
@@ -684,9 +677,7 @@ class Renderer(object):
 
     def hrule(self):
         """Rendering method for ``<hr>`` tag."""
-        if self.options.get('use_xhtml'):
-            return '<hr />\n'
-        return '<hr>\n'
+        return '<hr />\n' if self.options.get('use_xhtml') else '<hr>\n'
 
     def list(self, body, ordered=True):
         """Rendering list tags like ``<ul>`` and ``<ol>``.
@@ -694,9 +685,7 @@ class Renderer(object):
         :param body: body contents of the list.
         :param ordered: whether this list is ordered or not.
         """
-        tag = 'ul'
-        if ordered:
-            tag = 'ol'
+        tag = 'ol' if ordered else 'ul'
         return '<%s>\n%s</%s>\n' % (tag, body, tag)
 
     def list_item(self, text):
@@ -732,15 +721,12 @@ class Renderer(object):
         :param header: whether this is header or not.
         :param align: align of current table cell.
         """
-        if flags['header']:
-            tag = 'th'
-        else:
-            tag = 'td'
+        tag = 'th' if flags['header'] else 'td'
         align = flags['align']
-        if not align:
-            return '<%s>%s</%s>\n' % (tag, content, tag)
-        return '<%s style="text-align:%s">%s</%s>\n' % (
-            tag, align, content, tag
+        return (
+            '<%s style="text-align:%s">%s</%s>\n' % (tag, align, content, tag)
+            if align
+            else '<%s>%s</%s>\n' % (tag, content, tag)
         )
 
     def double_emphasis(self, text):
@@ -748,14 +734,14 @@ class Renderer(object):
 
         :param text: text content for emphasis.
         """
-        return '<strong>%s</strong>' % text
+        return f'<strong>{text}</strong>'
 
     def emphasis(self, text):
         """Rendering *emphasis* text.
 
         :param text: text content for emphasis.
         """
-        return '<em>%s</em>' % text
+        return f'<em>{text}</em>'
 
     def codespan(self, text):
         """Rendering inline `code` text.
@@ -763,20 +749,18 @@ class Renderer(object):
         :param text: text content for inline code.
         """
         text = escape(text.rstrip(), smart_amp=False)
-        return '<code>%s</code>' % text
+        return f'<code>{text}</code>'
 
     def linebreak(self):
         """Rendering line break like ``<br>``."""
-        if self.options.get('use_xhtml'):
-            return '<br />\n'
-        return '<br>\n'
+        return '<br />\n' if self.options.get('use_xhtml') else '<br>\n'
 
     def strikethrough(self, text):
         """Rendering ~~strikethrough~~ text.
 
         :param text: text content for strikethrough.
         """
-        return '<del>%s</del>' % text
+        return f'<del>{text}</del>'
 
     def text(self, text):
         """Rendering unformatted text.
@@ -800,7 +784,7 @@ class Renderer(object):
         """
         text = link = escape(link)
         if is_email:
-            link = 'mailto:%s' % link
+            link = f'mailto:{link}'
         return '<a href="%s">%s</a>' % (link, text)
 
     def link(self, link, title, text):
@@ -832,18 +816,14 @@ class Renderer(object):
             html = '<img src="%s" alt="%s" title="%s"' % (src, text, title)
         else:
             html = '<img src="%s" alt="%s"' % (src, text)
-        if self.options.get('use_xhtml'):
-            return '%s />' % html
-        return '%s>' % html
+        return f'{html} />' if self.options.get('use_xhtml') else f'{html}>'
 
     def inline_html(self, html):
         """Rendering span level pure html content.
 
         :param html: text content of the html snippet.
         """
-        if self.options.get('escape'):
-            return escape(html)
-        return html
+        return escape(html) if self.options.get('escape') else html
 
     def newline(self):
         """Rendering newline element."""
@@ -855,11 +835,10 @@ class Renderer(object):
         :param key: identity key for the footnote.
         :param index: the index count of current footnote.
         """
-        html = (
+        return (
             '<sup class="footnote-ref" id="fnref-%s">'
             '<a href="#fn-%s" rel="footnote">%d</a></sup>'
         ) % (escape(key), escape(key), index)
-        return html
 
     def footnote_item(self, key, text):
         """Rendering a footnote item.
@@ -872,11 +851,10 @@ class Renderer(object):
         ) % escape(key)
         text = text.rstrip()
         if text.endswith('</p>'):
-            text = re.sub(r'<\/p>$', r'%s</p>' % back, text)
+            text = re.sub(r'<\/p>$', f'{back}</p>', text)
         else:
-            text = '%s<p>%s</p>' % (text, back)
-        html = '<li id="fn-%s">%s</li>\n' % (escape(key), text)
-        return html
+            text = f'{text}<p>{back}</p>'
+        return '<li id="fn-%s">%s</li>\n' % (escape(key), text)
 
     def footnotes(self, text):
         """Wrapper for all footnotes.
@@ -965,9 +943,7 @@ class Markdown(object):
         return self.token
 
     def peek(self):
-        if self.tokens:
-            return self.tokens[-1]
-        return None  # pragma: no cover
+        return self.tokens[-1] if self.tokens else None
 
     def output(self, text, rules=None):
         self.tokens = self.block(text, rules)
@@ -987,7 +963,7 @@ class Markdown(object):
         if t.endswith('_start'):
             t = t[:-6]
 
-        return getattr(self, 'output_%s' % t)()
+        return getattr(self, f'output_{t}')()
 
     def tok_text(self):
         text = self.token['text']
@@ -1029,7 +1005,7 @@ class Markdown(object):
 
         # body part
         body = self.renderer.placeholder()
-        for i, row in enumerate(self.token['cells']):
+        for row in self.token['cells']:
             cell = self.renderer.placeholder()
             for j, value in enumerate(row):
                 align = aligns[j] if j < aligns_length else None
@@ -1055,11 +1031,7 @@ class Markdown(object):
     def output_list_item(self):
         body = self.renderer.placeholder()
         while self.pop()['type'] != 'list_item_end':
-            if self.token['type'] == 'text':
-                body += self.tok_text()
-            else:
-                body += self.tok()
-
+            body += self.tok_text() if self.token['type'] == 'text' else self.tok()
         return self.renderer.list_item(body)
 
     def output_loose_item(self):

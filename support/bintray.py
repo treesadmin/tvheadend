@@ -19,8 +19,7 @@ except ImportError:
     from urllib import urlencode
 
 def env(key):
-    if key in os.environ: return os.environ[key]
-    return None
+    return os.environ[key] if key in os.environ else None
 
 DEBUG=False
 
@@ -50,7 +49,7 @@ class Bintray(object):
     def __init__(self, path, headers=None):
         self._headers = headers or {}
         self._path = path or []
-        a = '%s:%s' % (BINTRAY_USER, BINTRAY_PASS)
+        a = f'{BINTRAY_USER}:{BINTRAY_PASS}'
         self._auth = b'Basic ' + base64.b64encode(a.encode('utf-8'))
 
     def opener(self):
@@ -67,7 +66,8 @@ class Bintray(object):
           data = json.dumps(data)
         opener = self.opener()
         path = self._path
-        if path[0] != '/': path = '/' + path
+        if path[0] != '/':
+            path = f'/{path}'
         request = urllib.Request(BINTRAY_API + path, data=data)
         request.add_header('Content-Type', content_type)
         request.add_header('Authorization', self._auth)
@@ -102,7 +102,7 @@ def do_upload(*args):
     bpath, file = args[0], args[1]
     data = open(file, 'rb').read()
     resp = Bintray(bpath).put(data, binary=1)
-    if resp.code != 200 and resp.code != 201:
+    if resp.code not in [200, 201]:
         if resp.code == 409:
             error(0, 'HTTP WARNING "%s" %s %s', resp.url, resp.code, resp.reason)
         error(10, 'HTTP ERROR "%s" %s %s', resp.url, resp.code, resp.reason)
@@ -123,16 +123,16 @@ def get_path(version, repo):
     major, minor, rest, git = get_ver(version)
     if int(major) >= 4 and int(minor) & 1 == 0:
         if repo in ['fedora', 'centos', 'rhel'] and git.find('~') <= 0:
-            return '%s.%s-release' % (major, minor)
-        return '%s.%s' % (major, minor)
+            return f'{major}.{minor}-release'
+        return f'{major}.{minor}'
     return 't'
 
 def get_component(version):
     major, minor, rest, git = get_ver(version)
     if int(major) >= 4 and int(minor) & 1 == 0:
         if git and git.find('~') > 0:
-            return 'stable-%s.%s' % (major, minor)
-        return 'release-%s.%s' % (major, minor)
+            return f'stable-{major}.{minor}'
+        return f'release-{major}.{minor}'
     return 'unstable'
 
 def get_repo(filename, hint=None):
@@ -154,10 +154,10 @@ def rpmversion(name):
     rpmbase, ver.arch = name.rsplit('.', 1)
     rpmname, rpmversion = rpmbase.rsplit('-', 1)
     rpmname, rpmversion2 = rpmname.rsplit('-', 1)
-    rpmversion = rpmversion2 + '-' + rpmversion
+    rpmversion = f'{rpmversion2}-{rpmversion}'
     rpmver1, rpmver2 = rpmversion.split('-', 1)
     rpmversion, ver.dist = rpmver2.split('.', 1)
-    ver.version = rpmver1 + '-' + rpmversion
+    ver.version = f'{rpmver1}-{rpmversion}'
     return ver
 
 def get_bintray_params(filename, hint=None):
@@ -177,78 +177,33 @@ def get_bintray_params(filename, hint=None):
             debname, debversion = debbase.split('-', 1)
         debversion, debdistro = debversion.rsplit('~', 1)
         args.version = debversion
-        args.path = 'pool/' + get_path(debversion, args.repo) + '/' + args.package
-        extra.append('deb_component=' + (BINTRAY_COMPONENT or get_component(debversion)))
-        extra.append('deb_distribution=' + debdistro)
-        extra.append('deb_architecture=' + debarch)
+        args.path = f'pool/{get_path(debversion, args.repo)}/{args.package}'
+        extra.extend(
+            (
+                'deb_component='
+                + (BINTRAY_COMPONENT or get_component(debversion)),
+                f'deb_distribution={debdistro}',
+                f'deb_architecture={debarch}',
+            )
+        )
+
     else:
         rpmver = rpmversion(name)
         args.version = rpmver.version
-        args.path = 'linux/' + get_path(rpmver.version, args.repo) + \
-                    '/' + rpmver.dist + '/' + rpmver.arch
+        args.path = f'linux/{get_path(rpmver.version, args.repo)}/{rpmver.dist}/{rpmver.arch}'
+
     extra = ';'.join(extra)
-    if extra: extra = ';' + extra
+    if extra:
+        extra = f';{extra}'
     return (basename, args, extra)
 
 def do_publish(*args):
     return
-    if len(args) < 1: error(1, 'upload [file with the file list]')
-    if not DEBUG:
-        branches = os.popen('git branch --contains HEAD').readlines()
-        ok = 0
-        for b in branches:
-            if b[0] == '*':
-                b = b[1:]
-            b = b.strip()
-            if b == 'master' or b.startswith('release/'):
-                ok = 1
-                break
-        if not ok:
-            info('BINTRAY upload - invalid branches\n%s', branches)
-            sys.exit(0)
-    files = open(args[0]).readlines()
-    args = None
-    for file in files:
-        try:
-            basename, args, extra = get_bintray_params(file)
-            hint = args.repo
-            break
-        except:
-            pass
-    if not args:
-        for file in files:
-            try:
-                basename, args, extra = get_bintray_params(file)
-            except:
-                traceback.print_exc()
-    bpath = '/packages/tvheadend/%s/tvheadend/versions' % args.repo
-    data = { 'name': args.version, 'desc': PACKAGE_DESC }
-    resp = Bintray(bpath).post(data)
-    if resp.code != 200 and resp.code != 201 and resp.code != 409:
-        error(10, 'Version %s/%s: HTTP ERROR %s %s',
-                  args.repo, args.version, resp.code, resp.reason)
-    info('Version %s/%s created', args.repo, args.version)
-    for file in files:
-        file = file.strip()
-        basename, args, extra = get_bintray_params(file, hint)
-        pub = 1
-        if "-dirty" in basename.lower():
-            pub = 0
-        bpath = '/content/%s/%s/%s/%s/%s/%s%s;publish=%s' % \
-                (args.org, args.repo, args.package, args.version,
-                 args.path, basename, extra, pub)
-        data = open(file, 'rb').read()
-        resp = Bintray(bpath).put(data, binary=1)
-        if resp.code != 200 and resp.code != 201:
-            error(10, 'File %s (%s): HTTP ERROR "%s" %s',
-                      file, bpath, resp.code, resp.reason)
-        else:
-            info('File %s: uploaded', file)
 
 def get_versions(repo, package):
-    bpath = '/packages/%s/%s/%s' % (BINTRAY_ORG, repo, package)
+    bpath = f'/packages/{BINTRAY_ORG}/{repo}/{package}'
     resp = Bintray(bpath).get()
-    if resp.code != 200 and resp.code != 201:
+    if resp.code not in [200, 201]:
         error(10, ' %s/%s: HTTP ERROR %s %s',
                repo, package, resp.code, resp.reason)
     return resp.body
@@ -256,15 +211,15 @@ def get_versions(repo, package):
 def get_files(repo, package, unpublished=0):
     bpath = '/packages/%s/%s/%s/files?include_unpublished=%d' % (BINTRAY_ORG, repo, package, unpublished)
     resp = Bintray(bpath).get()
-    if resp.code != 200 and resp.code != 201:
+    if resp.code not in [200, 201]:
         error(10, ' %s/%s: HTTP ERROR %s %s',
                repo, package, resp.code, resp.reason)
     return resp.body
 
 def delete_file(repo, file):
-    bpath = '/content/%s/%s/%s' % (BINTRAY_ORG, repo, urllib.quote(file))
+    bpath = f'/content/{BINTRAY_ORG}/{repo}/{urllib.quote(file)}'
     resp = Bintray(bpath).delete()
-    if resp.code != 200 and resp.code != 201:
+    if resp.code not in [200, 201]:
         error(10, ' %s/%s: HTTP ERROR %s %s',
                repo, file, resp.code, resp.reason)
 
@@ -327,7 +282,7 @@ def do_unknown(*args):
     r = 'Please, specify a valid command:\n'
     for n in globals():
         if n.startswith('do_') and n != 'do_unknown':
-            r += '  ' + n[3:] + '\n'
+            r += f'  {n[3:]}' + '\n'
     error(1, r[:-1])
 
 def test_filename():

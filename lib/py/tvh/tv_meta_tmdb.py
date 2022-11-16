@@ -52,10 +52,8 @@ class Tv_meta_tmdb(object):
           self.languages = args["languages"]
 
   def _get_image_url(self, img, size='original'):
-    """Try and get a reasonable size poster image"""
-    if not img:
-        return None
-    return self.image_base_url + size + "/" + img
+      """Try and get a reasonable size poster image"""
+      return self.image_base_url + size + "/" + img if img else None
 
   def _search_common(self, title, year, lang, query_path, year_query_field):
       params = {
@@ -68,7 +66,7 @@ class Tv_meta_tmdb(object):
           params[year_query_field] = year
 
       url = self.base_url + query_path
-      logging.debug("Search using %s with %s" % ( url, params))
+      logging.debug(f"Search using {url} with {params}")
       r = requests.get(
           url,
           params = params,
@@ -89,12 +87,10 @@ class Tv_meta_tmdb(object):
   def _search_all_languages_common(self, title, year, language, cb):
       for lang in language.split(","):
           try:
-              res = cb(title, year, lang)
-              if res:
+              if res := cb(title, year, lang):
                   return res
           except:
               logging.exception("Got exception")
-              pass
       return None
 
   def _search_movie_all_languages(self, title, year, language):
@@ -112,50 +108,50 @@ class Tv_meta_tmdb(object):
 
 
   def fetch_details(self, args):
-    logging.debug("Fetching with details %s " % args);
-    title = args["title"]
-    year = args["year"]
-    if self.languages:          # User override
-        language = self.languages
-    elif "language" in args:
-        language = args["language"]
-    else:
-        language = "en"
-    type = "movie" if 'type' not in args else args["type"]
+      logging.debug(f"Fetching with details {args} ");
+      title = args["title"]
+      year = args["year"]
+      if self.languages:          # User override
+          language = self.languages
+      elif "language" in args:
+          language = args["language"]
+      else:
+          language = "en"
+      type = "movie" if 'type' not in args else args["type"]
 
-    if title is None:
-        logging.critical("Need a title");
-        raise RuntimeError("Need a title");
+      if title is None:
+          logging.critical("Need a title");
+          raise RuntimeError("Need a title");
 
-    # Sometimes movies are actually tv shows, so if we have something
-    # that says it is a movie and the lookup fails, then search as a
-    # tv show instead.  We don't do the opposite for tv shows since
-    # they never get identified as a movie due to season and episode.
-    if type is None or type == 'movie':
-        res = self._search_all_languages(title, year, language, self._search_movie_all_languages, self._search_tv_all_languages)
-    else:
-        res = self._search_all_languages(title, year, language, self._search_tv_all_languages,  None)
-    logging.debug(res)
-    if res is None or len(res) == 0:
-        logging.info("Could not find any match for %s" % title);
-        raise LookupError("Could not find match for " + title);
+      # Sometimes movies are actually tv shows, so if we have something
+      # that says it is a movie and the lookup fails, then search as a
+      # tv show instead.  We don't do the opposite for tv shows since
+      # they never get identified as a movie due to season and episode.
+      if type is None or type == 'movie':
+          res = self._search_all_languages(title, year, language, self._search_movie_all_languages, self._search_tv_all_languages)
+      else:
+          res = self._search_all_languages(title, year, language, self._search_tv_all_languages,  None)
+      logging.debug(res)
+      if res is None or len(res) == 0:
+          logging.info(f"Could not find any match for {title}");
+          raise LookupError(f"Could not find match for {title}");
 
-    # Assume first match is the best
-    res0 = res[0]
-    poster = None
-    fanart = None
-    try:
-        poster = self._get_image_url(res0['poster_path'], self.poster_size)
-    except:
-        pass
+      # Assume first match is the best
+      res0 = res[0]
+      poster = None
+      fanart = None
+      try:
+          poster = self._get_image_url(res0['poster_path'], self.poster_size)
+      except:
+          pass
 
-    try:
-        fanart = self._get_image_url(res0['backdrop_path'], self.fanart_size)
-    except:
-        pass
+      try:
+          fanart = self._get_image_url(res0['backdrop_path'], self.fanart_size)
+      except:
+          pass
 
-    logging.debug("poster=%s fanart=%s title=%s year=%s" % (poster, fanart, title, year))
-    return {"poster": poster, "fanart": fanart}
+      logging.debug(f"poster={poster} fanart={fanart} title={title} year={year}")
+      return {"poster": poster, "fanart": fanart}
 
 if __name__ == '__main__':
   def process(argv):

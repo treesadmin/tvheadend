@@ -147,7 +147,7 @@ class Frame:
 
 def grab_frames(file, track):
   frames = []
-  f = os.popen("LC_ALL=C mkvinfo -v -v -X " + file, "r", 1)
+  f = os.popen(f"LC_ALL=C mkvinfo -v -v -X {file}", "r", 1)
   parse = False
   first = True
   while len(frames) < FRAMES:
@@ -155,7 +155,7 @@ def grab_frames(file, track):
     if not x:
       break
     if 'SimpleBlock' in x:
-      parse = ('track number %s,' % track) in x
+      parse = f'track number {track},' in x
     elif parse:
       pos = x.find(' hexdump ')
       if pos >= 0 and not first:
@@ -170,11 +170,10 @@ def grab_frames(file, track):
 f1 = grab_frames(GOOD, 1)
 f2 = grab_frames(WRONG, 1)
 
-for i in range(0, min(len(f1), len(f2))):
+for i in range(min(len(f1), len(f2))):
   a1 = f1[i]
   a2 = f2[i]
   match = a1.match(a2)
   print("%04s: %08s %08s %s" % (i, a1.len(), a2.len(), match))
-  if not match:
-    if not a2.compare(a1, 'WRONG', 'GOOD'):
-      break
+  if not match and not a2.compare(a1, 'WRONG', 'GOOD'):
+    break

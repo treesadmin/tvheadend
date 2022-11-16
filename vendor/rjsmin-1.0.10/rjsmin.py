@@ -111,22 +111,22 @@ def _make_jsmin(python_only=False):
     string1 = \
         r'(?:\047[^\047\\\r\n]*(?:\\(?:[^\r\n]|\r?\n|\r)[^\047\\\r\n]*)*\047)'
     string2 = r'(?:"[^"\\\r\n]*(?:\\(?:[^\r\n]|\r?\n|\r)[^"\\\r\n]*)*")'
-    strings = r'(?:%s|%s)' % (string1, string2)
+    strings = f'(?:{string1}|{string2})'
 
     charclass = r'(?:\[[^\\\]\r\n]*(?:\\[^\r\n][^\\\]\r\n]*)*\])'
     nospecial = r'[^/\\\[\r\n]'
     regex = r'(?:/(?![\r\n/*])%s*(?:(?:\\[^\r\n]|%s)%s*)*/)' % (
         nospecial, charclass, nospecial
     )
-    space = r'(?:%s|%s)' % (space_chars, space_comment)
-    space_nobang = r'(?:%s|%s)' % (space_chars, space_comment_nobang)
+    space = f'(?:{space_chars}|{space_comment})'
+    space_nobang = f'(?:{space_chars}|{space_comment_nobang})'
     newline = r'(?:%s?[\r\n])' % line_comment
 
     def fix_charclass(result):
         """ Fixup string of chars to fit into a regex char class """
         pos = result.find('-')
         if pos >= 0:
-            result = r'%s%s-' % (result[:pos], result[pos + 1:])
+            result = f'{result[:pos]}{result[pos + 1:]}-'
 
         def sequentize(string):
             """
@@ -145,11 +145,13 @@ def _make_jsmin(python_only=False):
                     first = last = char
             if last is not None:
                 result.append((first, last))
-            return ''.join(['%s%s%s' % (
-                chr(first),
-                last > first + 1 and '-' or '',
-                last != first and chr(last) or ''
-            ) for first, last in result])
+            return ''.join(
+                [
+                    f"{chr(first)}{last > first + 1 and '-' or ''}{last != first and chr(last) or ''}"
+                    for first, last in result
+                ]
+            )
+
 
         return _re.sub(
             r'([\000-\040\047])',  # \047 for better portability
@@ -167,7 +169,7 @@ def _make_jsmin(python_only=False):
         result = ''.join([
             chr(c) for c in xrange(127) if not match(chr(c))
         ])
-        return '[^%s]' % fix_charclass(result)
+        return f'[^{fix_charclass(result)}]'
 
     def not_id_literal_(keep):
         """ Make negated id_literal like char class """
@@ -175,7 +177,7 @@ def _make_jsmin(python_only=False):
         result = ''.join([
             chr(c) for c in xrange(127) if not match(chr(c))
         ])
-        return r'[%s]' % fix_charclass(result)
+        return f'[{fix_charclass(result)}]'
 
     not_id_literal = not_id_literal_(r'[a-zA-Z0-9_$]')
     preregex1 = r'[(,=:\[!&|?{};\r\n]'
@@ -437,7 +439,7 @@ if __name__ == '__main__':
             or '-pb' in _sys.argv[1:]
         )
         if '-p' in _sys.argv[1:] or '-bp' in _sys.argv[1:] \
-                or '-pb' in _sys.argv[1:]:
+                    or '-pb' in _sys.argv[1:]:
             global jsmin  # pylint: disable = W0603
             jsmin = _make_jsmin(python_only=True)
         _sys.stdout.write(jsmin(

@@ -18,6 +18,7 @@
 Connect to a HTSP server and monitor the asynchronous traffic
 """
 
+
 # System imports
 import os, sys, pprint, traceback
 from optparse import OptionParser
@@ -51,17 +52,15 @@ try:
   # Connect
   htsp = HTSPClient((opts.host, opts.port))
   msg  = htsp.hello()
-  log.info('connected to %s [%s]' % (msg['servername'], msg['serverversion']))
+  log.info(f"connected to {msg['servername']} [{msg['serverversion']}]")
   log.info('using protocol v%d' % htsp._version)
-  cap = []
-  if 'servercapability' in msg:
-    cap = msg['servercapability']
-  log.info('capabilities [%s]' % ','.join(cap))
+  cap = msg['servercapability'] if 'servercapability' in msg else []
+  log.info(f"capabilities [{','.join(cap)}]")
 
   # Authenticate
   if opts.user:
     htsp.authenticate(opts.user, opts.passwd)
-    log.info('authenticated as %s' % opts.user)
+    log.info(f'authenticated as {opts.user}')
 
   # Enable async
   args = {}

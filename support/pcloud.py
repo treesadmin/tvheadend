@@ -17,12 +17,15 @@ from io import BytesIO
 from os.path import basename
 
 def env(key):
-    if key in os.environ: return os.environ[key]
-    return None
+    return os.environ[key] if key in os.environ else None
 
 PCLOUD_USER=env('PCLOUD_USER')
 PCLOUD_PASS=env('PCLOUD_PASS')
-PCLOUD_CA_CERTS=env('PCLOUD_CA_CERTS') or os.path.dirname(os.path.realpath(__file__)) + '/pcloud-ca-bundle.crt'
+PCLOUD_CA_CERTS = (
+    env('PCLOUD_CA_CERTS')
+    or f'{os.path.dirname(os.path.realpath(__file__))}/pcloud-ca-bundle.crt'
+)
+
 
 DEBUG=False
 
@@ -54,7 +57,7 @@ def pcloud_normpath(path):
     if not path:
         return '/'
     if path[0] != '/':
-        path = '/' + path
+        path = f'/{path}'
     return path
 
 def pcloud_extract_publink_data(text):
@@ -111,18 +114,11 @@ class PyCloud(object):
         self.auth_token = self.get_auth_token()
 
     def _do_request(self, method, authenticate=True, json=True, **kw):
-        if authenticate:
-            params = {'auth': self.auth_token}
-        else:
-            params = {}
-        params.update(kw)
+        params = ({'auth': self.auth_token} if authenticate else {}) | kw
         #log.debug('Doing request to %s%s', self.endpoint, method)
         #log.debug('Params: %s', params)
         resp = self.session.get(self.endpoint + method, params=params, timeout=30, verify=PCLOUD_CA_CERTS)
-        if json:
-            return resp.json()
-        else:
-            return resp.content
+        return resp.json() if json else resp.content
 
     # Authentication
     def getdigest(self):
@@ -313,7 +309,7 @@ def simple(method, **kwargs):
 
 def do_listfolder(*args):
     kwargs={'path':'/'}
-    if len(args) > 0: kwargs['path'] = pcloud_normpath(args[0])
+    if args: kwargs['path'] = pcloud_normpath(args[0])
     r = simple('listfolder', **kwargs)
     if r['result']:
         error(10, 'Unable to list folder %s (%s: %s)', args[0], r['result'], r['error'])
@@ -323,7 +319,7 @@ def do_listfolder(*args):
         print(repr(i))
 
 def do_createfolder(*args):
-    if len(args) < 1: error(1, 'createfolder [path]')
+    if not args: error(1, 'createfolder [path]')
     path = pcloud_normpath(args[0])
     r = simple('createfolder', path=path)
     if r['result'] == 2004: # Folder already exists
@@ -341,7 +337,7 @@ def do_upload(*args):
         s.reverse()
         p = ''
         while s:
-            p += '/' + s.pop()
+            p += f'/{s.pop()}'
             if p != '//':
                 do_createfolder(p)
             else:
@@ -354,7 +350,12 @@ def do_publink_download(*args):
     if len(args) < 3: error(1, 'download [root-hash] [full path] [output path]')
     session = requests.Session()
     path = pcloud_normpath(args[1])
-    resp = session.get('https://my.pcloud.com/publink/show?code=%s' % args[0], timeout=30, verify=PCLOUD_CA_CERTS)
+    resp = session.get(
+        f'https://my.pcloud.com/publink/show?code={args[0]}',
+        timeout=30,
+        verify=PCLOUD_CA_CERTS,
+    )
+
     if resp.status_code != 200:
         error(10, 'Unable to retreive publink %s', args[0])
     pdata = pcloud_extract_publink_data(resp.content)
@@ -384,29 +385,38 @@ def do_publink_download(*args):
             error(10, 'Folder name "%s" not found', name)
     if not fctx:
         error(10, 'Filename "%s" not found', path)
-    resp = session.get('https://api.pcloud.com/getpublinkdownload?fileid=%s&hashCache=%s&code=%s' % (fctx['fileid'], fctx['hash'], args[0]), timeout=30, verify=PCLOUD_CA_CERTS)
+    resp = session.get(
+        f"https://api.pcloud.com/getpublinkdownload?fileid={fctx['fileid']}&hashCache={fctx['hash']}&code={args[0]}",
+        timeout=30,
+        verify=PCLOUD_CA_CERTS,
+    )
+
     if resp.status_code != 200:
         error(10, 'Unable to get file json for "%s"!' % path)
     j = resp.json()
     if len(j['hosts']) <= 0:
         error(10, 'No hosts?')
     for idx in range(len(j['hosts'])):
-        resp = session.get('https://%s%s' % (j['hosts'][idx], j['path']), timeout=30, verify=PCLOUD_CA_CERTS)
+        resp = session.get(
+            f"https://{j['hosts'][idx]}{j['path']}",
+            timeout=30,
+            verify=PCLOUD_CA_CERTS,
+        )
+
         if resp.status_code == 200:
             break
     if resp.status_code != 200:
         error(10, 'Unable to retreive file content for "%s"!' % path)
     if len(resp.content) == 0:
         error(10, 'Empty')
-    fp = open(args[2], sys.version_info[0] < 3 and "w+" or "bw+")
-    fp.write(resp.content)
-    fp.close()
+    with open(args[2], sys.version_info[0] < 3 and "w+" or "bw+") as fp:
+        fp.write(resp.content)
 
 def do_unknown(*args):
     r = 'Please, specify a valid command:\n'
     for n in globals():
         if n.startswith('do_') and n != 'do_unknown':
-            r += '  ' + n[3:] + '\n'
+            r += f'  {n[3:]}' + '\n'
     error(1, r[:-1])
 
 def main(argv):

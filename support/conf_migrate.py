@@ -35,26 +35,23 @@ def uuid ():
 #
 
 # Adapters
-def load_adapters ( path ):
+def load_adapters( path ):
   adps = {}
   for f in glob.glob(os.path.join(path, 'dvbadapters', '*')):
     s = open(f).read()
     d = json.loads(s)
     t = d['type']
-    if t.startswith('DVB'):
-      t = t[4]
-    else:
-      t = 'A'
+    t = t[4] if t.startswith('DVB') else 'A'
     adps[os.path.basename(f)] = {
       'type' : t,
       'nets' : {}
     }
-  
+
   # Done
   return adps
 
 # Muxes
-def load_muxes ( path, adps ):
+def load_muxes( path, adps ):
   maps = {
     'transportstreamid' : 'tsid',
     'originalnetworkid' : 'onid',
@@ -67,12 +64,12 @@ def load_muxes ( path, adps ):
   for f in glob.glob(os.path.join(path, 'dvbmuxes', '*', '*')):
     a = os.path.basename(os.path.dirname(f))
     if a not in adps: continue
-  
+
     t = adps[a]['type']
     s = open(f).read()
     d = json.loads(s)
-    
-    if not 'transportstreamid' in d: continue
+
+    if 'transportstreamid' not in d: continue
     tsid = d['transportstreamid']
     onid = d['originalnetworkid'] if 'transportstreamid' in d else None
 
@@ -104,7 +101,7 @@ def load_muxes ( path, adps ):
       m['modulation'] = '8PSK'
     if 'rolloff' in m:
       m['rolloff'] = m['rolloff'][8:]
-    
+
     # Store
     muxs[os.path.basename(f)] = m
 
@@ -132,12 +129,12 @@ def load_services ( path, muxs ):
   for f in glob.glob(os.path.join(path, 'dvbtransports', '*', '*')):
     m = os.path.basename(os.path.dirname(f))
     if m not in muxs: continue
-      
+
     # Load data    
     m = muxs[m]
     s = open(f).read()
     d = json.loads(s)
-    
+
     # Validate
     if 'service_id'  not in d: continue
     if 'stream' in d: del d['stream']
@@ -168,7 +165,7 @@ def load_channels ( path, nets ):
 
   # Process channels
   for f in glob.glob(os.path.join(path, 'channels', '*')):
-      
+
     # Load data
     s = open(f).read()
     d = json.loads(s)
@@ -201,7 +198,7 @@ def load_channels ( path, nets ):
 # IPTV
 #
 
-def iptv_network ( nets, opts ):
+def iptv_network( nets, opts ):
   muxes = {}
   for f in glob.glob(os.path.join(path, 'iptvservices', '*')):
     s   = open(f).read()
@@ -217,10 +214,7 @@ def iptv_network ( nets, opts ):
       m = muxes[url]
 
     # Create service entry
-    if 'channelname' in d:
-      d['svcname']       = d['channelname']
-    else:
-      d['svcname']       = ''
+    d['svcname'] = d['channelname'] if 'channelname' in d else ''
     d['dvb_servicetype'] = d['stype']
     d['sid']             = 1 # Let's hope!
     d['enabled']         = e
@@ -243,7 +237,7 @@ def iptv_network ( nets, opts ):
 #
 
 # Build networks
-def build_networks ( adps, opts ):
+def build_networks( adps, opts ):
   nets = []
 
   # Process each adapter
@@ -286,26 +280,17 @@ def build_networks ( adps, opts ):
     for m in n['muxs']:
       m = n['muxs'][m]
       if 'network' not in m: continue
-      if m['network'] not in names:
-        names[m['network']] = 1
-      else:
-        names[m['network']] = 1 + names[m['network']]
+      names[m['network']] = 1 + names[m['network']] if m['network'] in names else 1
     name = None
-    for na in names:
-      if not name:
+    for na, value in names.items():
+      if not name or value > names[name]:
         name = na
-      elif names[na] > names[name]:
-        name = na
-    if name:
-      n['name'] = name
-    else:
-      n['name'] = 'Network %s %d' % (n['type'], i)
-      
+    n['name'] = name or 'Network %s %d' % (n['type'], i)
   # Done
   return nets
 
 # Output services
-def output_services ( path, svcs, opts ):
+def output_services( path, svcs, opts ):
   ignore = { 'type', 'key', 'channelname', 'mapped' }
 
   if not os.path.exists(path):
@@ -314,13 +299,9 @@ def output_services ( path, svcs, opts ):
   # Process services
   for s in svcs:
     s = svcs[s]
-    
-    # Copy
-    d = {}
-    for k in s:
-      if k not in ignore:
-        d[k] = s[k]
 
+    # Copy
+    d = {k: s[k] for k in s if k not in ignore}
     # Output
     u     = uuid()
     spath = os.path.join(path, u)
@@ -329,7 +310,7 @@ def output_services ( path, svcs, opts ):
     
 
 # Output muxes
-def output_muxes ( path, muxs, opts ):
+def output_muxes( path, muxs, opts ):
   ignore = [ 'type', 'key', 'svcs', 'network', 'quality', 'status' ]
 
   # Process each
@@ -337,11 +318,7 @@ def output_muxes ( path, muxs, opts ):
     m = muxs[m]
 
     # Copy
-    d = {}
-    for k in m:
-      if k not in ignore:
-        d[k] = m[k]
-
+    d = {k: m[k] for k in m if k not in ignore}
     # Output
     u     = uuid()
     mpath = os.path.join(path, u)
@@ -353,7 +330,7 @@ def output_muxes ( path, muxs, opts ):
 
 # Output networks
 def output_networks ( path, nets, opts ):
- 
+
   # Ensure dir exists
   path = os.path.join(path, 'input', 'linuxdvb', 'networks')
   if not os.path.exists(path):
@@ -361,7 +338,7 @@ def output_networks ( path, nets, opts ):
 
   # Write each network
   for n in nets:
-  
+
     # Network config
     if n['type'] == 'A':
       c = 'linuxdvb_network_atsc'
@@ -482,7 +459,7 @@ def update_dvr ( path, chns ):
 # EPG grab
 #
 
-def update_epg ( path, chns ):
+def update_epg( path, chns ):
 
   # Remove otamux
   p = os.path.join(path, 'epggrab', 'otamux')
@@ -501,9 +478,8 @@ def update_epg ( path, chns ):
     # Update all channels
     t = []
     if 'channels' in d:
-      for c in d['channels']:
-        if c in chns and 'uuid' in chns[c]:
-          t.append(chns[c]['uuid'])
+      t.extend(chns[c]['uuid'] for c in d['channels']
+               if c in chns and 'uuid' in chns[c])
     d['channels'] = t
 
     # Save

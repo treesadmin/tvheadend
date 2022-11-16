@@ -27,7 +27,7 @@ def po_str(text):
   if not text:
     return ''
   if text[0] != '"' and text[-1] != '"':
-    raise ValueError('Wrong text: %s' % text)
+    raise ValueError(f'Wrong text: {text}')
   text = text[1:-1]
   if not text:
     return ''
@@ -132,7 +132,7 @@ def to_c(po_files):
         b = cstr(strings[s])
         sys.stdout.write('%s"%s", "%s"' % (sep, a, b));
         sep = ',\n'
-    sys.stdout.write('%sNULL, NULL' % sep)
+    sys.stdout.write(f'{sep}NULL, NULL')
     sys.stdout.write('\n};\n\n');
     idx += 1
 
