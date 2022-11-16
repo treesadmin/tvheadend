@@ -18,6 +18,7 @@
 Dump Electronic Program Guide (EPG) in human readable format for analysis
 """
 
+
 # System libs
 import os, sys
 import pprint
@@ -27,7 +28,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lib', 'py'))
 import tvh.htsmsg as htsmsg
 
 if len(sys.argv) < 2:
-  sys.exit('Usage: %s epg-path' % sys.argv[0])
+  sys.exit(f'Usage: {sys.argv[0]} epg-path')
 
 if not os.path.exists(sys.argv[1]):
   sys.exit('ERROR: epg "%s" was not found!' % sys.argv[1])

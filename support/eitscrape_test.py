@@ -158,23 +158,19 @@ class EITScrapeTest(object):
         continue
       if canonical not in regexes:
         print ('Test case contains invalid key "{key}" (possible typo) for "{test}"'.format(key=key, test=test))
-        raise SyntaxWarning('Test case contains invalid/unknown key {}'.format(key))
+        raise SyntaxWarning(f'Test case contains invalid/unknown key {key}')
       if for_engine:
         keys_to_test.discard(canonical)
         keys_to_test.add(key)
-      else:
-        if not engine or key + ':' + engine not in keys_to_test:
-          keys_to_test.add(key)
+      elif not engine or f'{key}:{engine}' not in keys_to_test:
+        keys_to_test.add(key)
 
     for key in keys_to_test:
       canonical, _, _ = key.partition(':')
       text = test['summary']
       if canonical == 'new_title':
         text = test['title'] + ' % ' + text
-      if 'language' in test:
-        lang = test['language']
-      else:
-        lang = None
+      lang = test['language'] if 'language' in test else None
       if regexes[canonical]:
         self.run_test_case_i(text, lang, regexes[canonical], test[key], key)
       else:
@@ -190,10 +186,7 @@ def get_regs(parser, engine, key):
       l = parser[key]
     except KeyError:
       return None
-  res = []
-  for reg in l:
-    res.append(Regex(engine, reg))
-  return res
+  return [Regex(engine, reg) for reg in l]
 
 def main(argv):
   parser = argparse.ArgumentParser(description='Test scraper regular expressions')
@@ -216,8 +209,7 @@ def main(argv):
   pprint.pprint(parser, indent=2)
 
   # Compile the regular expressions that we will use.
-  regexes = {}
-  regexes["season"] = get_regs(parser, args.engine, 'season_num')
+  regexes = {"season": get_regs(parser, args.engine, 'season_num')}
   regexes["episode"] = get_regs(parser, args.engine, 'episode_num')
   regexes["airdate"] = get_regs(parser, args.engine, 'airdate')
   regexes["new_title"] = get_regs(parser, args.engine, 'scrape_title')
@@ -231,7 +223,7 @@ def main(argv):
   tester = EITScrapeTest()
 
   for test in tests['tests']:
-    print ("Running test" + str(test))
+    print(f"Running test{str(test)}")
     pprint.pprint(test)
     tester.run_test_case(args.engine, test, regexes)
 

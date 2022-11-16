@@ -27,7 +27,7 @@ def po_str(text):
   if not text:
     return ''
   if text[0] != '"' and text[-1] != '"':
-    raise ValueError('Wrong text: %s' % text)
+    raise ValueError(f'Wrong text: {text}')
   text = text[1:-1]
   if not text:
     return ''

@@ -140,15 +140,15 @@ elif opts.protocol in [ 'udp', 'rtp' ]:
     debug('sent')
 
   # RTP output
-  def rtp_out ( tsb ):
+  def rtp_out( tsb ):
     debug('send %d' % len(tsb))
     rtp = '\x80\x21'
-    rtp = rtp + ('\x00' * 2) # TVH ignores seqnum
-    rtp = rtp + ('\x00' * 4) # TVH ignores timestamp
-    rtp = rtp + ('\x00' * 4) # TVH ignores SSRC
+    rtp += '\x00' * 2
+    rtp += '\x00' * 4
+    rtp += '\x00' * 4
     #rtp = rtp + ('\x00' * 4) # TVH ignores CSRC
     # TODO: add CC and extension for testing
-    rtp = rtp + tsb
+    rtp += tsb
     try:
       s.sendto(rtp, (a[4][0], p))
     except:

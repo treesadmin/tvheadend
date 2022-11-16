@@ -18,8 +18,7 @@ except ImportError:
     from urllib import urlencode, quote
 
 def env(key, deflt):
-    if key in os.environ: return os.environ[key]
-    return deflt
+    return os.environ[key] if key in os.environ else deflt
 
 DEBUG=False
 
@@ -60,13 +59,18 @@ class TVHeadend(object):
 
     def opener(self):
         handlers = []
-        if TVH_AUTH == 'digest':
-            handlers.append(urllib.HTTPDigestAuthHandler(PWD_MGR))
-        elif TVH_AUTH == 'basic':
+        if TVH_AUTH == 'basic':
             handlers.append(urllib.HTTPBasicAuthHandler(PWD_MGR))
+        elif TVH_AUTH == 'digest':
+            handlers.append(urllib.HTTPDigestAuthHandler(PWD_MGR))
         else:
-            handlers.append(urllib.HTTPDigestAuthHandler(PWD_MGR))
-            handlers.append(urllib.HTTPBasicAuthHandler(PWD_MGR))
+            handlers.extend(
+                (
+                    urllib.HTTPDigestAuthHandler(PWD_MGR),
+                    urllib.HTTPBasicAuthHandler(PWD_MGR),
+                )
+            )
+
         if DEBUG:
             handlers.append(urllib.HTTPSHandler(debuglevel=1))
         return urllib.build_opener(*handlers)
@@ -79,7 +83,8 @@ class TVHeadend(object):
           data = data and urlencode(data).encode('utf-8') or None
         opener = self.opener()
         path = self._path
-        if path[0] != '/': path = '/' + path
+        if path[0] != '/':
+            path = f'/{path}'
         request = urllib.Request(TVH_API + path, data=data)
         if content_type:
             request.add_header('Content-Type', content_type)
@@ -97,7 +102,7 @@ class TVHeadend(object):
         return self._push(data, method='POST')
 
 def do_get0(*args):
-    if len(args) < 1: error(1, 'get [path] [json_query]')
+    if not args: error(1, 'get [path] [json_query]')
     path = args[0]
     query = None
     if len(args) > 1:
@@ -107,37 +112,37 @@ def do_get0(*args):
     if query:
         for q in query:
             r = query[q]
-            if type(r) == type({}) or type(r) == type([]):
+            if type(r) in [type({}), type([])]:
                 query[q] = json.dumps(r)
     resp = TVHeadend(path).post(query)
-    if resp.code != 200 and resp.code != 201:
+    if resp.code not in [200, 201]:
         error(10, 'HTTP ERROR "%s" %s %s', resp.url, resp.code, resp.reason)
     return resp.body
 
 def do_get(*args):
     body = do_get0(*args)
-    if type(body) == type({}) or type(body) == type([]):
+    if type(body) in [type({}), type([])]:
         print(json.dumps(body, indent=4, separators=(',', ': ')))
     else:
         print(body)
 
 def do_export(*args):
-    if len(args) < 1: error(1, 'get [uuid]')
+    if not args: error(1, 'get [uuid]')
     body = do_get0('raw/export', {'uuid':args[0]})
     if type(body) != type([]):
         error(11, 'Unknown data')
     if len(body) == 1:
         body = body[0]
-    if not 'uuid' in body:
+    if 'uuid' not in body:
         body['uuid'] = args[0].strip()
     print(json.dumps(body, indent=4, separators=(',', ': ')))
 
 def do_exportcls(*args):
-    if len(args) < 1: error(1, 'get [class]')
+    if not args: error(1, 'get [class]')
     body = do_get0('raw/export', {'class':args[0]})
     if not body:
         return
-    if type(body) != type({}) and type(body) != type([]):
+    if type(body) not in [type({}), type([])]:
         error(11, 'Unknown data')
     if 'entries' in body:
         body = body['entries']
@@ -146,12 +151,11 @@ def do_exportcls(*args):
     print(json.dumps(body, indent=4, separators=(',', ': ')))
 
 def do_import(*args):
-    if len(args) < 1:
+    if not args:
         jdata = sys.stdin.read()
     else:
-        fp = open(args[0])
-        jdata = fp.read()
-        fp.close()
+        with open(args[0]) as fp:
+            jdata = fp.read()
     jdata = json.loads(jdata.decode('utf-8'))
     body = do_get0('raw/import', {'node':jdata})
     if body and type(body) != type({}):
@@ -167,7 +171,7 @@ def do_unknown(*args):
     r = 'Please, specify a valid command:\n'
     for n in globals():
         if n.startswith('do_') and n != 'do_unknown':
-            r += '  ' + n[3:] + '\n'
+            r += f'  {n[3:]}' + '\n'
     error(1, r[:-1])
 
 def main(argv):

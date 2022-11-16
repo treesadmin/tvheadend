@@ -37,8 +37,7 @@ def out(pre, msg, **dargs):
     import datetime, pprint
     now = datetime.datetime.now()
     if 'pretty' in dargs and dargs['pretty']:
-        ind = 2
-        if 'indent' in dargs: ind = dargs['indent']
+        ind = dargs.get('indent', 2)
         msg = pprint.pformat(msg, indent=ind, width=70)
     out = '%s %-6s: %s\n' % (now.strftime('%F %T'), pre, msg)
     sys.stderr.write(out)

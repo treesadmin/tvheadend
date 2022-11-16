@@ -56,11 +56,11 @@ def url(fn):
       if url and url[0] == "'" and url[-1] == "'":
         url = url[1:-1]
       if url.startswith('../docresources'):
-        url = umangle(url, '../docresources', TVHDIR + '/docs/docresources')
+        url = umangle(url, '../docresources', f'{TVHDIR}/docs/docresources')
       elif url.startswith('../../docresources'):
-        url = umangle(url, '../../docresources', TVHDIR + '/docs/docresources')
+        url = umangle(url, '../../docresources', f'{TVHDIR}/docs/docresources')
       else:
-        url = os.path.normpath(bd + '/' + url)
+        url = os.path.normpath(f'{bd}/{url}')
       if not os.path.exists(url):
         error('Wrong path "%s" (from %s)', url, fn)
       url = url[len(TVHDIR)+1:]

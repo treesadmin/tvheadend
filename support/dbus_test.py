@@ -87,9 +87,7 @@ if 'help' in sys.argv or '-h' in sys.argv or '--help' in sys.argv:
 if 'monitor' in sys.argv:
   monitor()
   sys.exit(0)
-bus = None
-if '--session' in sys.argv:
-  bus = dbus.SessionBus()
+bus = dbus.SessionBus() if '--session' in sys.argv else None
 if not bus:
   bus = dbus.SystemBus()
 cmds = [x for x in sys.argv[1:] if not x.startswith('--')]
@@ -98,4 +96,4 @@ if not cmds:
 for cmd in cmds:
   a = cmd.split(':')
   args = len(a) > 1 and a[1] or None
-  globals()['cmd_' + a[0]](args)
+  globals()[f'cmd_{a[0]}'](args)

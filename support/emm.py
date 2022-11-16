@@ -19,8 +19,7 @@ class Params:
 
 def extract(line, what):
   pos = line.find(what)
-  if pos < 0: return None
-  return line[pos + len(what):]
+  return None if pos < 0 else line[pos + len(what):]
 
 def extract_params(line, kdelim='='):
   line = line.strip().lstrip()
@@ -52,18 +51,18 @@ def emm(line, oline):
   for f in FILTERS:
     if f.pid != params.pid: continue
     if ord(data[0]) & ord(f.mask[0]) != ord(f.value[0]): continue
-    ok = 1
-    for i in range(1, min(16, len(data)-2)):
-      if ord(data[i+2]) & ord(f.mask[i]) != ord(f.value[i]):
-        ok = 0
-        break
-    if ok:
+    if ok := next(
+        (0 for i in range(1, min(16,
+                                 len(data) - 2))
+         if ord(data[i + 2]) & ord(f.mask[i]) != ord(f.value[i])),
+        1,
+    ):
       d = data[0] + data[3:]
-      print 'match! filter=%s, pid=%s' % (f.filter, f.pid)
-      print '  emm  : %s' % (d.encode('hex'))
-      print '  data : %s' % (f.value.encode('hex'))
-      print '  mask : %s' % (f.mask.encode('hex'))
-      print '  (%s)' % (oline.lstrip().strip())
+      d = data[0] + data[3:]
+      d = data[0] + data[3:]
+      d = data[0] + data[3:]
+      d = data[0] + data[3:]
+      d = data[0] + data[3:]
 
 def filter(line):
   params = extract_params(line)

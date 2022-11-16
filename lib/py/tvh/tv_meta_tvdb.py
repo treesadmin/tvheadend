@@ -65,62 +65,66 @@ The class assumes you pass a key (from registering at tvdb.com).
 Exceptions are thrown to indicate data could not be retrieved.
 """
     def __init__(self, args):
-      logging.info(args)
-      for arg in (["key"]):
-          if args is None or arg not in args or args[arg] is None or args[arg] == "":
-              logging.critical("Need a tvdb-"  + arg + ". No lookup available with this module.")
-              raise RuntimeError("Need a tvdb-" + arg);
+        logging.info(args)
+        for arg in (["key"]):
+            if args is None or arg not in args or args[arg] is None or args[arg] == "":
+                logging.critical(f"Need a tvdb-{arg}. No lookup available with this module.")
+                raise RuntimeError(f"Need a tvdb-{arg}");
 
-      self.languages = None
-      # 2 character language code. At time of writing, valid languages on the server are:
-      # ['da', 'fi', 'nl', 'de', 'it', 'es', 'fr', 'pl', 'hu', 'el', 'tr', 'ru', 'he', 'ja', 'pt', 'zh', 'cs', 'sl', 'hr', 'ko', 'en', 'sv', 'no']
-      # We accept a csv of languages.
-      #
-      # In general, it seems best to include "en" otherwise you only
-      # get fanart that is specifically tagged for your language (there
-      # does not seem to be a "all languages" option on the images).
-      if 'languages' in args and args["languages"] is not None:
-          self.languages = args["languages"]
+        self.languages = None
+        # 2 character language code. At time of writing, valid languages on the server are:
+        # ['da', 'fi', 'nl', 'de', 'it', 'es', 'fr', 'pl', 'hu', 'el', 'tr', 'ru', 'he', 'ja', 'pt', 'zh', 'cs', 'sl', 'hr', 'ko', 'en', 'sv', 'no']
+        # We accept a csv of languages.
+        #
+        # In general, it seems best to include "en" otherwise you only
+        # get fanart that is specifically tagged for your language (there
+        # does not seem to be a "all languages" option on the images).
+        if 'languages' in args and args["languages"] is not None:
+            self.languages = args["languages"]
 
-      self.auth = None
-      self.session = requests.Session()
-      self.session.headers = self._get_headers()
-      self.timeout = 10         # Timeout in seconds
-      self.apikey = args["key"]
-      self.base_url = "https://api.thetvdb.com/"
-      self.auth = self._get_auth()
+        self.auth = None
+        self.session = requests.Session()
+        self.session.headers = self._get_headers()
+        self.timeout = 10         # Timeout in seconds
+        self.apikey = args["key"]
+        self.base_url = "https://api.thetvdb.com/"
+        self.auth = self._get_auth()
 
     def _get_headers(self):
         headers = { 'Content-Type': 'application/json' }
         if self.auth:
-            headers['Authorization'] = 'Bearer ' + self.auth
+            headers['Authorization'] = f'Bearer {self.auth}'
         return headers
 
     def _get_auth(self):
         r = self.session.post(
-            self.base_url + 'login',
-            timeout = self.timeout,
-            data=json.dumps({'apikey' : self.apikey}))
+            f'{self.base_url}login',
+            timeout=self.timeout,
+            data=json.dumps({'apikey': self.apikey}),
+        )
+
         token = r.json()['token']
-        self.session.headers.update({'Authorization' : 'Bearer ' + token})
+        self.session.headers.update({'Authorization': f'Bearer {token}'})
         return token
 
     def get_tvdbid(self, title, language = "en"):
         """Return episode tvdb id"""
         with AcceptLanguage(self.session, language):
-            r=self.session.get(
-                self.base_url + 'search/series',
-                timeout = self.timeout,
-                params={'name': title})
+            r = self.session.get(
+                f'{self.base_url}search/series',
+                timeout=self.timeout,
+                params={'name': title},
+            )
+
             return r.json()['data'][0]['id']
 
     def _get_art(self, title = None, tvdbid = None, artworkType = 'fanart'):
         if tvdbid is None:
             tvdbid = self.get_tvdbid(title)
 
-        logging.debug("%s type %s" % (tvdbid, type(tvdbid)))
-        url = self.base_url + 'series/' + str(tvdbid) + '/images/query'
-        logging.debug("Searching %s with id %s and keytype %s" % (url, tvdbid, artworkType))
+        logging.debug(f"{tvdbid} type {type(tvdbid)}")
+        url = f'{self.base_url}series/{str(tvdbid)}/images/query'
+        logging.debug(f"Searching {url} with id {tvdbid} and keytype {artworkType}")
         r=self.session.get(
             url,
             timeout = self.timeout,
@@ -128,7 +132,7 @@ Exceptions are thrown to indicate data could not be retrieved.
         r.raise_for_status()
         filename = r.json()['data'][0]['fileName']
         if not filename.startswith("http"):
-            filename = "https://thetvdb.com/banners/" + filename
+            filename = f"https://thetvdb.com/banners/{filename}"
         return filename
 
     def get_fanart(self, title = None, tvdbid = None, language = "en"):
@@ -149,53 +153,53 @@ class Tv_meta_tvdb(object):
           self.languages = args["languages"]
 
   def fetch_details(self, args):
-    logging.debug("Fetching with details %s " % args);
-    title = args["title"]
-    year = args["year"]
+      logging.debug(f"Fetching with details {args} ");
+      title = args["title"]
+      year = args["year"]
 
-    if title is None:
-        logging.critical("Need a title");
-        raise RuntimeError("Need a title");
+      if title is None:
+          logging.critical("Need a title");
+          raise RuntimeError("Need a title");
 
-    if self.languages is not None:
-        language = self.languages
-    elif "language" in args:
-        language = args["language"]
-    else:
-        language = "en"
+      if self.languages is not None:
+          language = self.languages
+      elif "language" in args:
+          language = args["language"]
+      else:
+          language = "en"
 
-    tvdbid = None
-    query = title
+      tvdbid = None
+      query = title
 
-    # try with "title (year)".
-    if year is not None:
-        query = query + " (%s)" % year
-        try:
-            tvdbid = self.tvdb.get_tvdbid(query, language)
-        except:
-            pass
+        # try with "title (year)".
+      if year is not None:
+          query = f"{query} ({year})"
+          try:
+              tvdbid = self.tvdb.get_tvdbid(query, language)
+          except:
+              pass
 
-    if tvdbid is None:
-        try:
-            tvdbid = self.tvdb.get_tvdbid(title, language)
-        except:
-            logging.info("Could not find any matching episode for " + title);
-            raise LookupError("Could not find match for " + title);
+      if tvdbid is None:
+          try:
+              tvdbid = self.tvdb.get_tvdbid(title, language)
+          except:
+              logging.info(f"Could not find any matching episode for {title}");
+              raise LookupError(f"Could not find match for {title}");
 
-    poster = fanart = None
-    #  We don't want failure to process one image to affect the other.
-    try:
-        poster = self.tvdb.get_poster(tvdbid = tvdbid, language=language)
-    except Exception:
-        pass
+      poster = fanart = None
+      #  We don't want failure to process one image to affect the other.
+      try:
+          poster = self.tvdb.get_poster(tvdbid = tvdbid, language=language)
+      except Exception:
+          pass
 
-    try:
-        fanart = self.tvdb.get_fanart(tvdbid = tvdbid, language=language)
-    except:
-        pass
+      try:
+          fanart = self.tvdb.get_fanart(tvdbid = tvdbid, language=language)
+      except:
+          pass
 
-    logging.debug("poster=%s fanart=%s title=%s year=%s" % (poster, fanart, title, year))
-    return {"poster": poster, "fanart": fanart}
+      logging.debug(f"poster={poster} fanart={fanart} title={title} year={year}")
+      return {"poster": poster, "fanart": fanart}
 
 if __name__ == '__main__':
   def process(argv):
